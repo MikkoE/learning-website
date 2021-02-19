@@ -1,44 +1,55 @@
-const express = require('express');
-const Article = require('./../models/articles');
-const router = express.Router();
+const express = require('express')
+const Article = require('./../models/articles')
+const router = express.Router()
 
-router.get('/new', (req, res) => {
-    res.render('articles/new');
-});
-
-router.get('/:id', (req, res) => {
-
-});
-
-router.post('/', async (req, res) => {
-    const article = new Article({
-        title: req.body.title,
-        description: req.body.description,
-        markdown: req.body.markdown
-    })
-    try {
-        await article.save();
-        res.redirect(`/articles/${article.id}`);
-    } catch (error) {
-        res.render('articles/new', { aricle: article});
-    }
-    
-});
-
-router.get('/', (req, res) => {
-    const articles = [{
-        title: 'Test article',
-        createdAt: new Date(),
-        description: 'Test description'
-
-    },
-    {
-        title: 'Test article 2',
-        createdAt: new Date(),
-        description: 'Test description 2'
-
-    }]
-    res.render('articles/index', { articles: articles});
+router.get('/', async (req, res) => {
+    const articles = await Article.find().sort({ createdAt: 'desc' })
+    res.render('articles/index', { articles: articles })
 })
 
-module.exports = router;
+router.get('/new', (req, res) => {
+  res.render('articles/new', { article: new Article() })
+})
+
+router.get('/edit/:id', async (req, res) => {
+  const article = await Article.findById(req.params.id)
+  res.render('articles/edit', { article: article })
+})
+
+router.get('/show/:slug', async (req, res) => {
+  const article = await Article.findOne({ slug: req.params.slug })
+  if (article == null) res.redirect('/articles')
+  res.render('articles/show', { article: article })
+})
+
+router.post('/', async (req, res, next) => {
+  req.article = new Article()
+  next()
+}, saveArticleAndRedirect('new'))
+
+router.put('/:id', async (req, res, next) => {
+  req.article = await Article.findById(req.params.id)
+  next()
+}, saveArticleAndRedirect('edit'))
+
+router.delete('/:id', async (req, res) => {
+  await Article.findByIdAndDelete(req.params.id)
+  res.redirect('/articles')
+})
+
+function saveArticleAndRedirect(path) {
+  return async (req, res) => {
+    let article = req.article
+    article.title = req.body.title
+    article.description = req.body.description
+    article.markdown = req.body.markdown
+    try {
+      article = await article.save()
+      res.redirect(`/articles/show/${article.slug}`)
+    } catch (e) {
+      res.render(`articles/${path}`, { article: article })
+    }
+  }
+}
+
+module.exports = router
